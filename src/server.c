@@ -16,7 +16,8 @@
         - parsing them and checking if the command is recognized
         - and then answering to the client 
  The client exits the process by using the command <exit> */
-void communication_loop(int connfd){
+void* communication_loop(void* connfdaddr){
+	int connfd = *((int*) connfdaddr);
     char buff[MAX_MESSAGE_LENGTH];
 	
 	for (;;) {
@@ -38,6 +39,7 @@ void communication_loop(int connfd){
         }
         free(command);
     }
+	close(connfd);
 }
 
 char** parse(char* msg){
@@ -49,32 +51,8 @@ char** parse(char* msg){
     return 0;
 }
 
-void* client_listener(void* sockfdaddr){
-    int connfd, len;
-	struct sockaddr_in cli;
-	int sockfd = *((int*) sockfdaddr);
 
-	if ((listen(sockfd, 5)) != 0) {
-		printf("server.c: listen failed\n");
-		exit(0);
-	}
-	else
-		printf("server_thread_%u listening..\n", (unsigned) pthread_self());
-	len = sizeof(cli);
-
-	connfd = accept(sockfd, (struct sockaddr*) &cli, &len);
-	if (connfd < 0) {
-		printf("server.c: server_thread_%u couldn't accept client\n", (unsigned) pthread_self());
-		exit(0);
-	}
-	else
-		printf("server_thread_%u accepted client\n", (unsigned) pthread_self());
-
-    communication_loop(connfd);
-
-}
-
-void init_server(){
+int make_sock(){
 	int sockfd;
 	struct sockaddr_in servaddr;
 
@@ -98,22 +76,46 @@ void init_server(){
 	}
 	else
 		printf("Bound socket with server on PORT=%d\n", PORT);
+	return sockfd;
+}
 
+void listen_sock(int sockfd){
+	if ((listen(sockfd, 2)) != 0) {
+			printf("server.c: listen failed\n");
+			exit(0);
+		}
+	else
+		printf("server listening..\n");
+}
 
-
-    // using several threads to handle multiple clients
-    pthread_t client_threads[MAX_CLIENTS];
-    printf("yolo");
-    for (int i=0; i< MAX_CLIENTS; i++){
-        if (pthread_create(&client_threads[i], NULL, client_listener, (void*) &sockfd) != 0){
-		    printf("server.c: thread_%d creation failed\n", i);
+void handle_conn(int sockfd){
+	while (1){
+		struct sockaddr_in new_cl_sock;
+		int sz = sizeof(new_cl_sock);
+		int connfd = accept(sockfd, (struct sockaddr*) &new_cl_sock, &sz);
+		if (connfd < 0) {
+			printf("server.c: server couldn't accept the new client\n");
+			continue;
+		}
+		else
+			printf("server accepted a new client\n");
+		pthread_t client_handler;
+		if (pthread_create(&client_handler, NULL, communication_loop, (void*) &connfd) != 0){
+		    printf("server.c: thread creation failed\n");
         }
-    }
-    
-    for (int i=0; i < MAX_CLIENTS; i++){
-        pthread_join(client_threads[i], NULL);
-    }
-	
+		pthread_detach(client_handler);
+	}
+}
+
+void init_server(){
+	int sockfd = make_sock();
+	listen_sock(sockfd);
+	handle_conn(sockfd);
 	close(sockfd);
+}
+
+
+void main(){
+	init_server();
 }
 

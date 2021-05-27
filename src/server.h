@@ -1,12 +1,16 @@
 #define MAX_MESSAGE_LENGTH 128
 #define PORT 8080
-#define MAX_CLIENTS 6
 
 void init_server();
 
-void* client_listener(void* sockfd);
+int make_sock();
 
-void communication_loop(int connfd);
+void listen_sock(int sockfd);
+
+void handle_sock(int sockfd);
+
+void* communication_loop(void* connfdaddr);
 
 char** parse(char* msg);
+
 
