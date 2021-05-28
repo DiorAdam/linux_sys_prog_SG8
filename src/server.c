@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <dirent.h>
 
 #include "server.h"
 
@@ -80,7 +81,7 @@ char* parse_exec(user* u, char* msg_ptr){
 			return ans;
 		}
 
-		int res = addUser(un, pwd);
+		int res = add_user(un, pwd);
 		if (res == 0){
 			strcpy(ans, ADD_USER_SUCCESS);
 		}
@@ -116,20 +117,14 @@ char* parse_exec(user* u, char* msg_ptr){
 			strcpy(ans, PARSING_ERROR);
 			return ans;
 		}
-		int res = correctCredentials(un, pwd);
+		int res = correct_credentials(un, pwd);
 		if (res == 0){
 			strcpy(u->username, un);
 			strcpy(ans, LOGIN_SUCCESS);
 		}
-		else if (res == -1){
-			strcpy(ans, LOGIN_ERROR);
-		}
-		else if (res == -2){
-			strcpy(ans, INVALID_PASSWORD);
-		}
-		else{
-			strcpy(ans, INVALID_USERNAME);
-		}
+		else if (res == -1) strcpy(ans, LOGIN_ERROR);
+		else if (res == -2) strcpy(ans, INVALID_PASSWORD);
+		else strcpy(ans, INVALID_USERNAME);
 		return ans;
 	}
 
@@ -149,10 +144,73 @@ char* parse_exec(user* u, char* msg_ptr){
 		return ans;
 	}
 
+	else if (strcmp(curr_tkn, "CREATE") == 0){
+		char* chat_name = strtok(NULL, " \n");
+		if (chat_name == NULL){
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		curr_tkn = strtok(NULL, " \n");
+		if (curr_tkn != NULL){
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		printf("yolo1\n");
+		int res = create_chat(chat_name, u);
+		printf("yolo3\n");
+		if (res == 0) strcpy(ans, CHAT_CREATION_SUCCESS);
+		else if (res == -1) strcpy(ans, CHAT_CREATION_ERROR);
+		else strcpy(ans, CHAT_EXISTS);
+		return ans;
+	}
+
+	else if (strcmp(curr_tkn, "SEND") == 0){
+		char* chat_name = strtok(NULL, " \n");
+		if (chat_name == NULL){
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		char* chat_msg = strtok(NULL, "");
+		if (chat_msg == NULL){
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+
+		if (send_chat_msg(chat_name, chat_msg, u) == 0) strcpy(ans, SEND_SUCCESS);
+		else strcpy(ans, SEND_ERROR);
+		return ans;
+	}
+
+	else if (strcmp(curr_tkn, "ADD") == 0){
+		char* chat_name = strtok(NULL, " \n");
+		if (chat_name == NULL){
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		char* new_member = strtok(NULL, " \n");
+		if (new_member == NULL){
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		curr_tkn = strtok(NULL, " \n");
+		if (curr_tkn != NULL){
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+
+		int res = add_chat_member(chat_name, new_member, u);
+		if (res == 0) strcpy(ans, ADD_CHAT_MEMBER_SUCCESS);
+		else if (res == -1) strcpy(ans, ADD_CHAT_MEMBER_ERROR);
+		else if (res == -2) strcpy(ans, CHAT_DOESNT_EXIST);
+		else if (res == -3) strcpy(ans, USER_DOESNT_EXIST);
+		else strcpy(ans, BAD_PERMISSION);
+		return ans;
+	}
+
     return 0;
 }
 
-int isValidUsername(char* username) {
+int is_valid_username(char* username) {
 	int length = 0; char c;
 	while ( (c = *username) != '\0' ) {
 		if ( c == ' ' || c == '\n' || c == '\t' || c >= 128 )
@@ -163,7 +221,7 @@ int isValidUsername(char* username) {
 	return length < 30 && length > 1;
 }
 
-int isValidPassword(char* password) {
+int is_valid_password(char* password) {
 	int length = 0; char c;
 	while ( (c = *password) != '\0' ) {
 		if ( c == ' ' || c == '\n' || c == '\t' || c >= 128 )
@@ -176,7 +234,7 @@ int isValidPassword(char* password) {
 
 
 
-int userExists(char* username) {
+int user_exists(char* username) {
 	FILE* f = fopen(CREDENTIALS_FILE, "r");
 	if ( f == NULL )
 		return -1;
@@ -194,7 +252,7 @@ int userExists(char* username) {
 	return 1;
 }
 
-int correctCredentials(char* username, char* password) {
+int correct_credentials(char* username, char* password) {
 	FILE* f = fopen(CREDENTIALS_FILE, "r");
 	if ( f == NULL )
 		return -1;
@@ -218,10 +276,10 @@ int correctCredentials(char* username, char* password) {
 	return -3; //user doesn't exist
 }
 
-int addUser(char* username, char* password) {
-	if ( !isValidPassword(password) ) return -2;
-	if (!isValidUsername(username)) return -3;
-	if ( userExists(username) != 1 ) return -4;
+int add_user(char* username, char* password) {
+	if ( !is_valid_password(password) ) return -2;
+	if (!is_valid_username(username)) return -3;
+	if ( user_exists(username) != 1 ) return -4;
 	FILE* f = fopen(CREDENTIALS_FILE, "a");
 	if ( f == NULL )
 		return -1;
@@ -230,8 +288,8 @@ int addUser(char* username, char* password) {
 	return 0;
 }
  
-char* randomString(char *str, size_t size) {
-	const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJK...";
+char* random_string(char *str, size_t size) {
+	const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJK";
 	if (size) {
 		srand(time(0));
 		--size;
@@ -244,7 +302,86 @@ char* randomString(char *str, size_t size) {
 	return str;
 }
 
+int chat_exists(char* chat_name) {
+	DIR *d;
+	struct dirent *dir;
+	d = opendir(CHAT_DIR);
+	if ( d == NULL ) return -1;
+	while ((dir = readdir(d)) != NULL) {
+		char* dir_name = strtok(dir->d_name, "_");
+		if (dir_name == NULL) continue;
+		dir_name = strtok(NULL, ".");
+		if (dir_name == NULL) continue; 
+		if ( strcmp(dir_name, chat_name) == 0 ) return 0;
+	}
 
+	closedir(d);
+	return -2;
+}
+
+int create_chat(char* chat_name, user* u){
+	if ( chat_exists(chat_name) == 0 ) return -2;
+	char members_path[128]; 
+	strcpy(members_path, CHAT_DIR);
+	strcat(members_path, "/membership_");
+	strcat(members_path, chat_name);
+	strcat(members_path, ".txt");
+	FILE* fm = fopen(members_path, "w");
+	if ( fm == NULL ) return -1;
+	fprintf(fm, "%s\n", u->username);
+	fclose(fm);
+
+	char chat_path[128];
+	strcpy(chat_path, CHAT_DIR);
+	strcat(chat_path, "/chat_");
+	strcat(chat_path, chat_name);
+	strcat(chat_path, ".txt");
+	FILE* fc = fopen(chat_path, "w");
+	if ( fc == NULL ) return -1;
+	fprintf(fc, "%s : I created this chat!\n", u->username);
+	fprintf(fc, "%s : I and only I can add new members!\n", u->username);
+	fclose(fc);
+	
+	return 0;
+}
+
+int send_chat_msg(char* chat_name, char* msg, user* u){
+	char path[128]; 
+	strcpy(path, CHAT_DIR);
+	strcat(path, "/chat_");
+	strcat(path, chat_name);
+	strcat(path, ".txt");
+	FILE* f = fopen(path, "a");
+	if ( f == NULL ) return -1;
+	fprintf(f, "%s : %s", u->username, msg);
+	fclose(f);
+	return 0;
+}
+
+int add_chat_member(char* chat_name, char* new_member, user* u){
+	if (chat_exists(chat_name) != 0) return -2;
+	if (user_exists(new_member) != 0) return -3;
+
+	//checking if the user adding a new member is the founder of the group chat
+	char members_path[128]; 
+	strcpy(members_path, CHAT_DIR);
+	strcat(members_path, "/membership_");
+	strcat(members_path, chat_name);
+	strcat(members_path, ".txt");
+	FILE* f = fopen(members_path, "r");
+	if ( f == NULL ) return -1;
+	char founder[50];
+	if (fgets(founder, 50, f) == NULL) return -1;
+	if (strcmp(strtok(founder, "\n"), u->username) != 0) return -4;
+	fclose(f);
+
+	//adding the new member in the membership file of the group chat
+	f = fopen(members_path, "a");
+	if ( f == NULL ) return -1;
+	fprintf(f, "%s\n", new_member);
+	fclose(f);
+	return 0;
+}
 
 
 int make_sock(){
