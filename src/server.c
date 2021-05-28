@@ -16,38 +16,48 @@
         - parsing them and checking if the command is recognized
         - and then answering to the client 
  The client exits the process by using the command <exit> */
+
+
 void* communication_loop(void* connfdaddr){
 	int connfd = *((int*) connfdaddr);
     char buff[MAX_MESSAGE_LENGTH];
-	
+	user u;
 	for (;;) {
 		bzero(buff, MAX_MESSAGE_LENGTH);
 		
 		read(connfd, buff, sizeof(buff));
 		
-        char** command = parse(buff);
+        char* response = parse_exec(&u, buff);
 
-        if (!command){
-            char response[] = "I don't understand this command\n";
-		    write(connfd, response, sizeof(response));
+        if (!response){
+            response = "An error occured while executing this command\n";
         }
         else {
-            if (strncmp(command[0], "exit", 4) == 0){
+            if (strcmp(response, "EXIT\n") == 0){
                 printf("Client handled by server_thread_%u disconnected\n", (unsigned) pthread_self());
                 break;
             }
         }
-        free(command);
+		write(connfd, response, strlen(response));
     }
 	close(connfd);
 }
 
-char** parse(char* msg){
-    char** ans = (char**) malloc(sizeof(char*));
-    if (strncmp(msg, "exit", 4) == 0) {
-        ans[0] = msg;
-        return ans;
+char* parse_exec(user* u, char* msg_ptr){
+	char msg[MAX_MESSAGE_LENGTH];
+	strcpy(msg, msg_ptr); 
+	char* curr_tkn = strtok(msg, " \n");
+	char* ans = (char*) malloc(MAX_MESSAGE_LENGTH);
+	
+    if (strcmp(curr_tkn, "EXIT") == 0) {
+		curr_tkn = strtok(NULL, curr_tkn);
+		if ( curr_tkn == NULL)
+			strcpy(ans, "EXIT\n");
+		else 
+			strcpy(ans, PARSING_ERROR);
+		return ans;
     }
+
     return 0;
 }
 
@@ -89,7 +99,7 @@ void listen_sock(int sockfd){
 }
 
 void handle_conn(int sockfd){
-	while (1){
+	for(;;){
 		struct sockaddr_in new_cl_sock;
 		int sz = sizeof(new_cl_sock);
 		int connfd = accept(sockfd, (struct sockaddr*) &new_cl_sock, &sz);
