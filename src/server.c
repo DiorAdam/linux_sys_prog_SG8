@@ -47,8 +47,9 @@ char* parse_exec(user* u, char* msg_ptr){
 	char msg[MAX_MESSAGE_LENGTH];
 	strcpy(msg, msg_ptr); 
 	char* curr_tkn = strtok(msg, " \n");
+
 	char* ans = (char*) malloc(MAX_MESSAGE_LENGTH);
-	
+
     if (strcmp(curr_tkn, "EXIT") == 0) {
 		curr_tkn = strtok(NULL, curr_tkn);
 		if ( curr_tkn == NULL)
@@ -58,8 +59,123 @@ char* parse_exec(user* u, char* msg_ptr){
 		return ans;
     }
 
+	else if (strcmp(curr_tkn, "SIGNUP") == 0){
+		char* un = strtok(NULL, " \n"); 
+		if (un == NULL) {
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		char* pwd = strtok(NULL, " \n");
+		if (pwd == NULL) {
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		if (addUser(un, pwd) != 0){
+			return PARSING_ERROR;
+		}
+		curr_tkn = strtok(NULL, curr_tkn);
+		if ( curr_tkn != NULL){
+			return PARSING_ERROR;
+		}
+		strcpy(ans, "Account succesfully created\n");
+		return ans;
+	}
+	
     return 0;
 }
+
+int isValidUsername(char* username) {
+	int length = 0; char c;
+	while ( (c = *username) != '\0' ) {
+		if ( c == ' ' || c == '\n' || c == '\t' || c >= 128 )
+			return 0;
+		username++;
+		length++;
+	}
+	return length < 30 && length > 1;
+}
+
+int isValidPassword(char* password) {
+	int length = 0; char c;
+	while ( (c = *password) != '\0' ) {
+		if ( c == ' ' || c == '\n' || c == '\t' || c >= 128 )
+			return 0;
+		password++;
+		length++;
+	}
+	return 1;
+}
+
+
+int userExists(char* username) {
+	FILE* f = fopen(CREDENTIALS_FILE, "r");
+	if ( f == NULL )
+		return -1;
+	
+	char line[128]; char* t;
+	while ( (t = fgets(line, 128, f)) != NULL ) {
+		char* ptr = strtok(line, " ");
+		if ( strcmp(ptr, username) == 0 ) {
+			fclose(f);
+			return 0;
+		}
+	}
+	
+	fclose(f);
+	return 1;
+}
+
+int correctPassword(char* username, char* password) {
+	FILE* f = fopen(CREDENTIALS_FILE, "r");
+	if ( f == NULL )
+		return -1;
+	
+	char line[128]; char* t;
+	while ( (t = fgets(line, 128, f)) != NULL ) {
+		char* ptr = strtok(line, "\n");
+		char* user = strtok(ptr, " ");
+		char* pass = strtok(NULL, " ");
+		fprintf(stdout, "%s vs %s / %s vs %s.\n", username, user, password, pass);
+		if ( strcmp(user, username) == 0 ) {
+			fclose(f);
+			if ( strcmp(pass, password) == 0 )
+				return 0; //valid combination
+				
+				return -2; //user exists
+		}
+	}
+	
+	fclose(f);
+	return -3; //user doesn't exist
+}
+
+int addUser(char* username, char* password) {
+	if ( !isValidPassword(password) ) return -3;
+	if (!isValidUsername(username)) return -3;
+	if ( userExists(username) != 1 ) return -2;
+	FILE* f = fopen(CREDENTIALS_FILE, "a");
+	if ( f == NULL )
+		return -1;
+	fprintf(f, "%s %s\n", username, password);
+	fclose(f);
+	return 0;
+}
+ 
+char* randomString(char *str, size_t size) {
+	const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJK...";
+	if (size) {
+		srand(time(0));
+		--size;
+		for (size_t n = 0; n < size; n++) {
+			int key = rand() % (int) (sizeof(charset) - 1);
+			str[n] = charset[key];
+		}
+		str[size] = '\0';
+	}
+	return str;
+}
+
+
 
 
 int make_sock(){
