@@ -3,7 +3,17 @@
 
 #define CREDENTIALS_FILE "../data/credentials.txt"
 
-#define PARSING_ERROR "Parsing Error\n"
+#define PARSING_ERROR "Parsing Error : command is not valid\n"
+#define INVALID_USERNAME "Username is not valid\n"
+#define INVALID_PASSWORD "Password is not valid\n"
+#define ADD_USER_ERROR "An error occurred while registering\n"
+#define ADD_USER_SUCCESS "Account succesfully created\n"
+#define LOGIN_ERROR "An error occurred while logging in\n"
+#define LOGIN_SUCCESS "Succesfully logged in\n"
+#define USER_EXISTS "Username already exists\n"
+#define LOGOUT_ERROR "Not logged in\n"
+#define LOGOUT_SUCCESS "Succesfully logged out\n"
+
 
 
 
@@ -29,4 +39,7 @@ int isValidPassword(char* password);
 
 int addUser(char* un, char* pwd);
 
+int correctCredentials(char* username, char* password);
+
+int userExists(char* username);
 

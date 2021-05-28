@@ -31,14 +31,18 @@ void* communication_loop(void* connfdaddr){
 
         if (!response){
             response = "An error occured while executing this command\n";
+			write(connfd, response, strlen(response));
         }
         else {
             if (strcmp(response, "EXIT\n") == 0){
                 printf("Client handled by server_thread_%u disconnected\n", (unsigned) pthread_self());
                 break;
             }
+			write(connfd, response, strlen(response));
+			free(response);
         }
-		write(connfd, response, strlen(response));
+		
+		
     }
 	close(connfd);
 }
@@ -70,17 +74,81 @@ char* parse_exec(user* u, char* msg_ptr){
 			strcpy(ans, PARSING_ERROR);
 			return ans;
 		}
-		if (addUser(un, pwd) != 0){
-			return PARSING_ERROR;
-		}
 		curr_tkn = strtok(NULL, curr_tkn);
 		if ( curr_tkn != NULL){
-			return PARSING_ERROR;
+			strcpy(ans, PARSING_ERROR);
+			return ans;
 		}
-		strcpy(ans, "Account succesfully created\n");
+
+		int res = addUser(un, pwd);
+		if (res == 0){
+			strcpy(ans, ADD_USER_SUCCESS);
+		}
+		else if (res == -1){
+			strcpy(ans, ADD_USER_ERROR);
+		}
+		else if (res == -2){
+			strcpy(ans, INVALID_PASSWORD);
+		}
+		else if (res == -3){
+			strcpy(ans, INVALID_USERNAME);
+		}
+		else{
+			strcpy(ans, USER_EXISTS);
+		}
+		
 		return ans;
 	}
 	
+	else if (strcmp(curr_tkn, "LOGIN") == 0){
+		char* un = strtok(NULL, " \n"); 
+		if (un == NULL) {
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		char* pwd = strtok(NULL, " \n");
+		if (pwd == NULL) {
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		curr_tkn = strtok(NULL, curr_tkn);
+		if ( curr_tkn != NULL){
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		int res = correctCredentials(un, pwd);
+		if (res == 0){
+			strcpy(u->username, un);
+			strcpy(ans, LOGIN_SUCCESS);
+		}
+		else if (res == -1){
+			strcpy(ans, LOGIN_ERROR);
+		}
+		else if (res == -2){
+			strcpy(ans, INVALID_PASSWORD);
+		}
+		else{
+			strcpy(ans, INVALID_USERNAME);
+		}
+		return ans;
+	}
+
+	else if (strcmp(curr_tkn, "LOGOUT") == 0){
+		curr_tkn = strtok(NULL, " \n");
+		if (curr_tkn != NULL){
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+
+		if (!strlen(u->username)){
+			strcpy(ans, LOGOUT_ERROR);
+			return ans;
+		}
+		memset(u->username, '\0', sizeof(u->username));
+		strcpy(ans, LOGOUT_SUCCESS);
+		return ans;
+	}
+
     return 0;
 }
 
@@ -107,6 +175,7 @@ int isValidPassword(char* password) {
 }
 
 
+
 int userExists(char* username) {
 	FILE* f = fopen(CREDENTIALS_FILE, "r");
 	if ( f == NULL )
@@ -125,7 +194,7 @@ int userExists(char* username) {
 	return 1;
 }
 
-int correctPassword(char* username, char* password) {
+int correctCredentials(char* username, char* password) {
 	FILE* f = fopen(CREDENTIALS_FILE, "r");
 	if ( f == NULL )
 		return -1;
@@ -150,9 +219,9 @@ int correctPassword(char* username, char* password) {
 }
 
 int addUser(char* username, char* password) {
-	if ( !isValidPassword(password) ) return -3;
+	if ( !isValidPassword(password) ) return -2;
 	if (!isValidUsername(username)) return -3;
-	if ( userExists(username) != 1 ) return -2;
+	if ( userExists(username) != 1 ) return -4;
 	FILE* f = fopen(CREDENTIALS_FILE, "a");
 	if ( f == NULL )
 		return -1;
