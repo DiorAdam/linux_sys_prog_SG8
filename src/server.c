@@ -11,7 +11,9 @@
 
 #include "server.h"
 
-
+pthread_mutex_t credentials_lock;
+pthread_mutex_t chats_lock;
+pthread_mutex_t memberships_lock;
 /* This function communicates with the client by: 
         - listening to the client's messages
         - parsing them and checking if the command is recognized
@@ -223,12 +225,52 @@ char* parse_exec(user* u, char* msg_ptr){
 		else strcpy(ans, BAD_PERMISSION);
 		return ans;
 	}
+	else if (strcmp(curr_tkn, "READ") == 0){
+		char* chat_name = strtok(NULL, " \n");
+		if (chat_name == NULL){
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		char* str_num_msgs = strtok(NULL, " \n");
+		int num_msgs;
+		printf("yolo1\n");
+		if ( (str_num_msgs == NULL) || (num_msgs = atoi(str_num_msgs)) == 0){
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		if (num_msgs > 5){
+			strcpy(ans, TOO_LONG);
+			return ans;
+		}
+		curr_tkn = strtok(NULL, " \n");
+		if (curr_tkn != NULL){
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		if (strlen(u->username) == 0){
+			strcpy(ans, LOGIN_REQUIRED);
+			return ans;
+		}
 
+		if (is_chat_member(chat_name, u->username) != 0){
+			strcpy(ans, BAD_PERMISSION);
+			return ans;
+		}
+		printf("yolo2\n");
+		char* chat_msgs = read_chat(chat_name, num_msgs);
+		if (chat_msgs == 0){
+			strcpy(ans, READ_CHAT_ERROR);
+			return ans;
+		}
+		free(ans);
+		return chat_msgs;
+	}
     return 0;
 }
 
-int is_valid_username(char* username) {
-	int length = 0; char c;
+int is_valid_username(char* username){
+	int length = 0; 
+	char c;
 	while ( (c = *username) != '\0' ) {
 		if ( c == ' ' || c == '\n' || c == '\t' || c >= 128 )
 			return 0;
@@ -239,7 +281,8 @@ int is_valid_username(char* username) {
 }
 
 int is_valid_password(char* password) {
-	int length = 0; char c;
+	int length = 0; 
+	char c;
 	while ( (c = *password) != '\0' ) {
 		if ( c == ' ' || c == '\n' || c == '\t' || c >= 128 )
 			return 0;
@@ -252,27 +295,35 @@ int is_valid_password(char* password) {
 
 
 int user_exists(char* username) {
+	pthread_mutex_lock(&credentials_lock);
 	FILE* f = fopen(CREDENTIALS_FILE, "r");
-	if ( f == NULL )
+	if ( f == NULL ){
+		pthread_mutex_unlock(&credentials_lock);
 		return -1;
+	}
 	
 	char line[128]; char* t;
 	while ( (t = fgets(line, 128, f)) != NULL ) {
 		char* ptr = strtok(line, " ");
 		if ( strcmp(ptr, username) == 0 ) {
 			fclose(f);
+			pthread_mutex_unlock(&credentials_lock);
 			return 0;
 		}
 	}
 	
 	fclose(f);
+	pthread_mutex_unlock(&credentials_lock);
 	return 1;
 }
 
 int correct_credentials(char* username, char* password) {
+	pthread_mutex_lock(&credentials_lock);
 	FILE* f = fopen(CREDENTIALS_FILE, "r");
-	if ( f == NULL )
+	if ( f == NULL ){
+		pthread_mutex_unlock(&credentials_lock);
 		return -1;
+	}
 	
 	char line[128]; char* t;
 	while ( (t = fgets(line, 128, f)) != NULL ) {
@@ -282,6 +333,7 @@ int correct_credentials(char* username, char* password) {
 		fprintf(stdout, "%s vs %s / %s vs %s.\n", username, user, password, pass);
 		if ( strcmp(user, username) == 0 ) {
 			fclose(f);
+			pthread_mutex_unlock(&credentials_lock);
 			if ( strcmp(pass, password) == 0 )
 				return 0; //valid combination
 				
@@ -290,6 +342,7 @@ int correct_credentials(char* username, char* password) {
 	}
 	
 	fclose(f);
+	pthread_mutex_unlock(&credentials_lock);
 	return -3; //user doesn't exist
 }
 
@@ -297,11 +350,15 @@ int add_user(char* username, char* password) {
 	if ( !is_valid_password(password) ) return -2;
 	if (!is_valid_username(username)) return -3;
 	if ( user_exists(username) != 1 ) return -4;
+	pthread_mutex_lock(&credentials_lock);
 	FILE* f = fopen(CREDENTIALS_FILE, "a");
-	if ( f == NULL )
+	if ( f == NULL ){
+		pthread_mutex_unlock(&credentials_lock);
 		return -1;
+	}
 	fprintf(f, "%s %s\n", username, password);
 	fclose(f);
+	pthread_mutex_unlock(&credentials_lock);
 	return 0;
 }
  
@@ -343,22 +400,31 @@ int create_chat(char* chat_name, user* u){
 	strcat(members_path, "/membership_");
 	strcat(members_path, chat_name);
 	strcat(members_path, ".txt");
+	pthread_mutex_lock(&memberships_lock);
 	FILE* fm = fopen(members_path, "w");
-	if ( fm == NULL ) return -1;
+	if ( fm == NULL ){
+		pthread_mutex_unlock(&memberships_lock);
+		return -1;
+	}
 	fprintf(fm, "%s\n", u->username);
 	fclose(fm);
+	pthread_mutex_unlock(&memberships_lock);
 
 	char chat_path[128];
 	strcpy(chat_path, CHAT_DIR);
 	strcat(chat_path, "/chat_");
 	strcat(chat_path, chat_name);
 	strcat(chat_path, ".txt");
+	pthread_mutex_lock(&chats_lock);
 	FILE* fc = fopen(chat_path, "w");
-	if ( fc == NULL ) return -1;
+	if ( fc == NULL ){
+		pthread_mutex_unlock(&chats_lock);
+		return -1;
+	}
 	fprintf(fc, "%s : I created this chat!\n", u->username);
 	fprintf(fc, "%s : I and only I can add new members!\n", u->username);
 	fclose(fc);
-	
+	pthread_mutex_unlock(&chats_lock);
 	return 0;
 }
 
@@ -369,10 +435,12 @@ int send_chat_msg(char* chat_name, char* msg, user* u){
 	strcat(path, "/chat_");
 	strcat(path, chat_name);
 	strcat(path, ".txt");
+	pthread_mutex_lock(&chats_lock);
 	FILE* f = fopen(path, "a");
 	if ( f == NULL ) return -1;
 	fprintf(f, "%s : %s", u->username, msg);
 	fclose(f);
+	pthread_mutex_unlock(&chats_lock);
 	return 0;
 }
 
@@ -382,16 +450,23 @@ int is_chat_member(char* chat_name, char* member_name){
 	strcat(members_path, "/membership_");
 	strcat(members_path, chat_name);
 	strcat(members_path, ".txt");
+	pthread_mutex_lock(&memberships_lock);
 	FILE* f = fopen(members_path, "r");
-	if ( f == NULL ) return -1;
+	if ( f == NULL ){
+		pthread_mutex_unlock(&memberships_lock);
+		return -1;
+	}
 
 	char line[128];
 	while (fgets(line, 128, f) != NULL ) {
 		if ( strcmp(member_name, strtok(line, "\n")) == 0 ) {
 			fclose(f);
+			pthread_mutex_unlock(&memberships_lock);
 			return 0;
 		}
 	}
+	fclose(f);
+	pthread_mutex_unlock(&memberships_lock);
 	return -1;
 }
 
@@ -406,21 +481,68 @@ int add_chat_member(char* chat_name, char* new_member, user* u){
 	strcat(members_path, "/membership_");
 	strcat(members_path, chat_name);
 	strcat(members_path, ".txt");
+	pthread_mutex_lock(&memberships_lock);
 	FILE* f = fopen(members_path, "r");
-	if ( f == NULL ) return -1;
+	if ( f == NULL ){
+		pthread_mutex_unlock(&memberships_lock);
+		return -1;
+	}
 	char founder[50];
-	if (fgets(founder, 50, f) == NULL) return -1;
-	if (strcmp(strtok(founder, "\n"), u->username) != 0) return -4;
+	if (fgets(founder, 50, f) == NULL){
+		fclose(f);
+		pthread_mutex_unlock(&memberships_lock);
+		return -1;
+	}
+	if (strcmp(strtok(founder, "\n"), u->username) != 0){
+		fclose(f);
+		pthread_mutex_unlock(&memberships_lock);
+		return -4;
+	}
 	fclose(f);
-
+	
 	//adding the new member in the membership file of the group chat
 	f = fopen(members_path, "a");
-	if ( f == NULL ) return -1;
+	if ( f == NULL ) {
+		pthread_mutex_unlock(&memberships_lock);
+		return -1;
+	}
 	fprintf(f, "%s\n", new_member);
 	fclose(f);
+	pthread_mutex_unlock(&memberships_lock);
 	return 0;
 }
 
+char* read_chat(char* chat_name, int max_msgs){
+	char chat_path[128];
+	strcpy(chat_path, CHAT_DIR);
+	strcat(chat_path, "/chat_");
+	strcat(chat_path, chat_name);
+	strcat(chat_path, ".txt");
+	pthread_mutex_lock(&chats_lock);
+	FILE* f = fopen(chat_path, "r");
+	if ( f == NULL ) {
+		pthread_mutex_unlock(&chats_lock);
+		return 0;
+	}
+
+	int msg_counter = 0;
+	char* ans = (char*) calloc(max_msgs, 128);
+	char* tkn;
+	char line[128];
+	while (fgets(line, 128, f) != NULL ){
+		if (msg_counter >= max_msgs){
+			tkn = strtok(ans, "\n");
+			tkn = strtok(NULL, "");
+			if (tkn == NULL) tkn = "";
+			strcpy(ans, tkn);
+		}
+		strcat(ans, line);
+		msg_counter++;
+	}
+	fclose(f);
+	pthread_mutex_unlock(&chats_lock);
+	return ans;
+}
 
 int make_sock(){
 	int sockfd;

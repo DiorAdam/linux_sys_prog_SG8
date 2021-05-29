@@ -24,6 +24,8 @@
 #define BAD_PERMISSION "You don't have the right permissions for this action\n"
 #define ADD_CHAT_MEMBER_ERROR "An error occurred while adding user in chat\n"
 #define ADD_CHAT_MEMBER_SUCCESS "User succesfully added to chat group\n"
+#define READ_CHAT_ERROR "An error occured while reading chat\n"
+#define TOO_LONG "Cannot read over 5 messages\n"
 
 
 typedef struct {
@@ -61,3 +63,5 @@ int send_chat_msg(char* chat_name, char* msg, user* u);
 int add_chat_member(char* chat_name, char* new_member, user* u);
 
 int is_chat_member(char* chat_name, char* member_name);
+
+char* read_chat(char* chat_name, int num_msgs);

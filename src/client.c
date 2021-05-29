@@ -9,7 +9,7 @@
 #include "server.h"
 
 void comm_loop_client(int sockfd){
-	char buff[MAX_MESSAGE_LENGTH];
+	char buff[5 * MAX_MESSAGE_LENGTH];
 	int pos;
 	char help[] = "supported commands are the following:\n\t- SIGNUP <username> <password>\n\t- LOGIN <username> <password>\n\t- CREATE <chat group>\n\t- ADD <chat group> <username>\n\t- SEND <chat group> <message>\n\t- LOGOUT\n\t- EXIT \n";            
 	printf("%s",help);
@@ -20,7 +20,7 @@ void comm_loop_client(int sockfd){
 		pos = 0;
 		while ((buff[pos] = getchar()) != '\n') pos++;
 
-		write(sockfd, buff, sizeof(buff));
+		write(sockfd, buff, strlen(buff));
 		if ((strcmp(buff, "EXIT\n")) == 0) {
 			printf("Disconnecting\n");
 			break;
@@ -28,7 +28,7 @@ void comm_loop_client(int sockfd){
 
 		bzero(buff, sizeof(buff));
 		read(sockfd, buff, sizeof(buff));
-		printf("Server response: %s", buff);
+		printf("%s", buff);
 		
 	}
 }
