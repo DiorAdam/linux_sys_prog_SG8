@@ -107,6 +107,7 @@ void handle_conn(int sockfd){
 }
 
 void init_server(){
+	if (clear_guests() < 0) printf("An Error occurred while clearing guest list");
 	int sockfd = make_sock();
 	listen_sock(sockfd);
 	handle_conn(sockfd);

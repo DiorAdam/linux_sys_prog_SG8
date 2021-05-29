@@ -15,6 +15,7 @@
 pthread_mutex_t credentials_lock;
 pthread_mutex_t chats_lock;
 pthread_mutex_t memberships_lock;
+pthread_mutex_t guests_lock;
 
 
 char* parse_exec(user* u, char* msg_ptr){
@@ -100,6 +101,22 @@ char* parse_exec(user* u, char* msg_ptr){
 		return ans;
 	}
 
+    else if (strcmp(curr_tkn, "GUEST") == 0){
+        curr_tkn = strtok(NULL, " \n");
+		if (curr_tkn != NULL){
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+        generate_guest_username(u);
+        if (login_guest(u->username) == 0){
+            sprintf(ans, "You have been registered as %s\n", u->username);
+        }
+        else{
+            strcpy(ans, LOGIN_GUEST_ERROR);
+        }
+        return ans;
+    }
+
 	else if (strcmp(curr_tkn, "LOGOUT") == 0){
 		curr_tkn = strtok(NULL, " \n");
 		if (curr_tkn != NULL){
@@ -111,6 +128,13 @@ char* parse_exec(user* u, char* msg_ptr){
 			strcpy(ans, LOGIN_REQUIRED);
 			return ans;
 		}
+        if (is_guest(u->username)){
+            printf("yolo_guest\n");
+            if (del_guest(u->username) < 0){
+                strcpy(ans, LOGOUT_ERROR);
+                return ans;
+            }
+        }
 		memset(u->username, '\0', sizeof(u->username));
 		strcpy(ans, LOGOUT_SUCCESS);
 		return ans;
@@ -131,9 +155,12 @@ char* parse_exec(user* u, char* msg_ptr){
 			strcpy(ans, LOGIN_REQUIRED);
 			return ans;
 		}
-		printf("yolo1\n");
+        if (is_guest(u->username)){
+            strcpy(ans, BAD_PERMISSION);
+            return ans;
+        }
+		
 		int res = create_chat(chat_name, u);
-		printf("yolo3\n");
 		if (res == 0) strcpy(ans, CHAT_CREATION_SUCCESS);
 		else if (res == -1) strcpy(ans, CHAT_CREATION_ERROR);
 		else strcpy(ans, CHAT_EXISTS);
@@ -223,7 +250,6 @@ char* parse_exec(user* u, char* msg_ptr){
 			strcpy(ans, BAD_PERMISSION);
 			return ans;
 		}
-		printf("yolo2\n");
 		char* chat_msgs = read_chat(chat_name, num_msgs);
 		if (chat_msgs == 0){
 			strcpy(ans, READ_CHAT_ERROR);
@@ -244,6 +270,7 @@ int is_valid_username(char* username){
 		username++;
 		length++;
 	}
+    if (strncmp(username, "guest_", 6) == 0) return 0;
 	return length < 30 && length > 1;
 }
 
@@ -260,8 +287,9 @@ int is_valid_password(char* password) {
 }
 
 
-
 int user_exists(char* username) {
+    if (is_guest(username)) return 0;
+
 	pthread_mutex_lock(&credentials_lock);
 	FILE* f = fopen(CREDENTIALS_FILE, "r");
 	if ( f == NULL ){
@@ -302,9 +330,9 @@ int correct_credentials(char* username, char* password) {
 			fclose(f);
 			pthread_mutex_unlock(&credentials_lock);
 			if ( strcmp(pass, password) == 0 )
-				return 0; //valid combination
+				return 0; //valid credentials
 				
-				return -2; //user exists
+				return -2; //user exists but password is wrong
 		}
 	}
 	
@@ -329,18 +357,94 @@ int add_user(char* username, char* password) {
 	return 0;
 }
  
-char* random_string(char *str, size_t size) {
-	const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJK";
-	if (size) {
-		srand(time(0));
-		--size;
-		for (size_t n = 0; n < size; n++) {
-			int key = rand() % (int) (sizeof(charset) - 1);
-			str[n] = charset[key];
-		}
-		str[size] = '\0';
+void generate_guest_username(user* u) {
+    strcpy(u->username, "guest_");
+	const char charset[] = "abcdefghijklmnopqrstuvwxyz";
+    srand(time(0));
+    for (int i = 0; i < 10; i++) {
+        int key = rand() % ((int) (strlen(charset)));
+        u->username[6+i] = charset[key];
+    }
+    u->username[6+10] = '\0';
+}
+
+int login_guest(char* guest_name){
+    pthread_mutex_lock(&guests_lock);
+    FILE* f = fopen(GUESTS_FILE, "a");
+	if ( f == NULL ){
+		pthread_mutex_unlock(&guests_lock);
+		return -1;
 	}
-	return str;
+	fprintf(f, "%s\n", guest_name);
+	fclose(f);
+    pthread_mutex_unlock(&guests_lock);
+    return 0;
+}
+
+int is_guest(char* name){
+    return (strncmp(name, "guest_", 6) == 0);
+}
+
+int del_user(char* username, char* filepath){
+    FILE* f = fopen(filepath, "r");
+    if (f == NULL) return -1;
+    char str_file[640] = ""; 
+    char line[64] = "";
+    while (fgets(line, 64,f)){
+        if (strncmp(username, line, strlen(username)) != 0){
+            strcat(str_file, line);
+        }
+    }
+    fclose(f);
+    f = fopen(filepath, "w");
+    if (f == NULL) return -1;
+    fprintf(f, "%s", str_file);
+    fclose(f);
+    return 0;
+}
+
+int del_guest(char* guest_name){
+    pthread_mutex_lock(&guests_lock);
+    if (del_user(guest_name, GUESTS_FILE)<0){
+        pthread_mutex_unlock(&guests_lock);
+        return -1;
+    }
+    pthread_mutex_unlock(&guests_lock);
+
+    DIR *d;
+	struct dirent *dir;
+	d = opendir(CHAT_DIR);
+	if ( d == NULL ) return -1;
+    pthread_mutex_lock(&memberships_lock);
+	while ((dir = readdir(d)) != NULL) {
+        char dir_name[64];
+        strcpy(dir_name, dir->d_name);
+        char* dir_type = strtok(dir_name, "_");
+		if (dir_type == NULL) continue;
+		if ( strcmp(dir_type, "membership") == 0 ){
+            char members_path[128]; 
+	        strcpy(members_path, CHAT_DIR);
+            strcat(members_path, "/");
+            strcat(members_path, dir->d_name);
+
+            if (del_user(guest_name, members_path) < 0){
+                closedir(d);
+                pthread_mutex_unlock(&memberships_lock);
+                return -1;
+            }
+        }
+    }
+    closedir(d);
+    pthread_mutex_unlock(&memberships_lock);
+    return 0;
+}
+
+int clear_guests(){
+    pthread_mutex_lock(&guests_lock);
+    FILE* f = fopen(GUESTS_FILE, "w");
+    if (f == NULL) return -1;
+    fclose(f);
+    pthread_mutex_unlock(&guests_lock);
 }
 
 int chat_exists(char* chat_name) {
