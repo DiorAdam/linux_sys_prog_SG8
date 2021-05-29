@@ -54,7 +54,10 @@ char* parse_exec(user* u, char* msg_ptr){
 	char* curr_tkn = strtok(msg, " \n");
 
 	char* ans = (char*) malloc(MAX_MESSAGE_LENGTH);
-
+	if (curr_tkn == NULL){
+		strcpy(ans, PARSING_ERROR);
+		return ans;
+	}
     if (strcmp(curr_tkn, "EXIT") == 0) {
 		curr_tkn = strtok(NULL, curr_tkn);
 		if ( curr_tkn == NULL)
@@ -135,8 +138,8 @@ char* parse_exec(user* u, char* msg_ptr){
 			return ans;
 		}
 
-		if (!strlen(u->username)){
-			strcpy(ans, LOGOUT_ERROR);
+		if (strlen(u->username) == 0){
+			strcpy(ans, LOGIN_REQUIRED);
 			return ans;
 		}
 		memset(u->username, '\0', sizeof(u->username));
@@ -153,6 +156,10 @@ char* parse_exec(user* u, char* msg_ptr){
 		curr_tkn = strtok(NULL, " \n");
 		if (curr_tkn != NULL){
 			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		if (strlen(u->username) == 0){
+			strcpy(ans, LOGIN_REQUIRED);
 			return ans;
 		}
 		printf("yolo1\n");
@@ -175,9 +182,15 @@ char* parse_exec(user* u, char* msg_ptr){
 			strcpy(ans, PARSING_ERROR);
 			return ans;
 		}
+		if (strlen(u->username) == 0){
+			strcpy(ans, LOGIN_REQUIRED);
+			return ans;
+		}
 
-		if (send_chat_msg(chat_name, chat_msg, u) == 0) strcpy(ans, SEND_SUCCESS);
-		else strcpy(ans, SEND_ERROR);
+		int res = send_chat_msg(chat_name, chat_msg, u);
+		if (res == 0) strcpy(ans, SEND_SUCCESS);
+		else if (res == -1) strcpy(ans, SEND_ERROR);
+		else strcpy(ans, BAD_PERMISSION);
 		return ans;
 	}
 
@@ -195,6 +208,10 @@ char* parse_exec(user* u, char* msg_ptr){
 		curr_tkn = strtok(NULL, " \n");
 		if (curr_tkn != NULL){
 			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+		if (strlen(u->username) == 0){
+			strcpy(ans, LOGIN_REQUIRED);
 			return ans;
 		}
 
@@ -346,6 +363,7 @@ int create_chat(char* chat_name, user* u){
 }
 
 int send_chat_msg(char* chat_name, char* msg, user* u){
+	if (is_chat_member(chat_name, u->username) != 0) return -2;
 	char path[128]; 
 	strcpy(path, CHAT_DIR);
 	strcat(path, "/chat_");
@@ -358,8 +376,28 @@ int send_chat_msg(char* chat_name, char* msg, user* u){
 	return 0;
 }
 
+int is_chat_member(char* chat_name, char* member_name){
+	char members_path[128]; 
+	strcpy(members_path, CHAT_DIR);
+	strcat(members_path, "/membership_");
+	strcat(members_path, chat_name);
+	strcat(members_path, ".txt");
+	FILE* f = fopen(members_path, "r");
+	if ( f == NULL ) return -1;
+
+	char line[128];
+	while (fgets(line, 128, f) != NULL ) {
+		if ( strcmp(member_name, strtok(line, "\n")) == 0 ) {
+			fclose(f);
+			return 0;
+		}
+	}
+	return -1;
+}
+
 int add_chat_member(char* chat_name, char* new_member, user* u){
 	if (chat_exists(chat_name) != 0) return -2;
+	if (is_chat_member(chat_name, new_member) == 0) return 0;
 	if (user_exists(new_member) != 0) return -3;
 
 	//checking if the user adding a new member is the founder of the group chat

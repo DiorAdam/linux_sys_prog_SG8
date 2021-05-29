@@ -13,8 +13,8 @@
 #define LOGIN_SUCCESS "Succesfully logged in\n"
 #define USER_EXISTS "Username already exists\n"
 #define USER_DOESNT_EXIST "Username doesn't exist\n"
-#define LOGOUT_ERROR "Not logged in\n"
 #define LOGOUT_SUCCESS "Succesfully logged out\n"
+#define LOGIN_REQUIRED "Login required for this action\n"
 #define CHAT_CREATION_ERROR "An error occurred while creating this chat\n"
 #define CHAT_CREATION_SUCCESS "Chat succesfully created\n"
 #define CHAT_EXISTS "Chat already exists\n"
@@ -59,3 +59,5 @@ int create_chat(char* chat_name, user* u);
 int send_chat_msg(char* chat_name, char* msg, user* u);
 
 int add_chat_member(char* chat_name, char* new_member, user* u);
+
+int is_chat_member(char* chat_name, char* member_name);
