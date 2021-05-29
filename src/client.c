@@ -11,8 +11,19 @@
 void comm_loop_client(int sockfd){
 	char buff[5 * MAX_MESSAGE_LENGTH];
 	int pos;
-	char help[] = "supported commands are the following:\n\t- SIGNUP <username> <password>\n\t- LOGIN <username> <password>\n\t- CREATE <chat group>\n\t- ADD <chat group> <username>\n\t- SEND <chat group> <message>\n\t- LOGOUT\n\t- EXIT \n";            
-	printf("%s",help);
+	char help[400] = ""; 
+	strcat(help, "supported commands are the following:\n");
+	strcat(help,"\t- SIGNUP <username> <password>\n");
+	strcat(help,"\t- LOGIN <username> <password>\n");
+	strcat(help,"\t- GUEST\n");
+	strcat(help,"\t- CREATE <chat group>\n");
+	strcat(help,"\t- ADD <chat group> <username>\n");
+	strcat(help,"\t- SEND <chat group> <message>\n");
+	strcat(help,"\t- READ <chat group> <number of messages>\n");
+	strcat(help,"\t- CHATS\n");
+	strcat(help,"\t- LOGOUT\n");
+	strcat(help,"\t- EXIT\n");            
+	printf("%s\n",help);
 	for (;;) {
 		bzero(buff, sizeof(buff));
 		

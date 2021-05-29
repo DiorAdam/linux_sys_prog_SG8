@@ -18,6 +18,12 @@ pthread_mutex_t memberships_lock;
 pthread_mutex_t guests_lock;
 
 
+/* 
+This function 
+    - parses the commands from the client
+    - exexcutes the command
+    - and finally returns a string containing the output
+*/
 char* parse_exec(user* u, char* msg_ptr){
 	char msg[MAX_MESSAGE_LENGTH];
 	strcpy(msg, msg_ptr); 
@@ -53,6 +59,11 @@ char* parse_exec(user* u, char* msg_ptr){
 			strcpy(ans, PARSING_ERROR);
 			return ans;
 		}
+
+        if (strlen(u->username)>0){
+            strcpy(ans,LOGOUT_REQUIRED);
+            return ans;
+        }
 
 		int res = add_user(un, pwd);
 		if (res == 0){
@@ -90,6 +101,11 @@ char* parse_exec(user* u, char* msg_ptr){
 			strcpy(ans, PARSING_ERROR);
 			return ans;
 		}
+        if (strlen(u->username)>0){
+            strcpy(ans,LOGOUT_REQUIRED);
+            return ans;
+        }        
+
 		int res = correct_credentials(un, pwd);
 		if (res == 0){
 			strcpy(u->username, un);
@@ -107,6 +123,12 @@ char* parse_exec(user* u, char* msg_ptr){
 			strcpy(ans, PARSING_ERROR);
 			return ans;
 		}
+
+        if (strlen(u->username) > 0){
+            strcpy(ans,LOGOUT_REQUIRED);
+            return ans;
+        }
+
         generate_guest_username(u);
         if (login_guest(u->username) == 0){
             sprintf(ans, "You have been registered as %s\n", u->username);
@@ -166,6 +188,26 @@ char* parse_exec(user* u, char* msg_ptr){
 		else strcpy(ans, CHAT_EXISTS);
 		return ans;
 	}
+
+    else if (strcmp(curr_tkn, "CHATS") == 0){
+        curr_tkn = strtok(NULL, " \n");
+		if (curr_tkn != NULL){
+			strcpy(ans, PARSING_ERROR);
+			return ans;
+		}
+        if (strlen(u->username) == 0){
+			strcpy(ans, LOGIN_REQUIRED);
+			return ans;
+		}
+
+        char* my_chats = chats_of(u->username);
+        if (my_chats == 0){
+            strcpy(ans, CHATS_ERROR);
+            return ans;
+        }
+        free(ans);
+        return my_chats;
+    }
 
 	else if (strcmp(curr_tkn, "SEND") == 0){
 		char* chat_name = strtok(NULL, " \n");
@@ -227,7 +269,6 @@ char* parse_exec(user* u, char* msg_ptr){
 		}
 		char* str_num_msgs = strtok(NULL, " \n");
 		int num_msgs;
-		printf("yolo1\n");
 		if ( (str_num_msgs == NULL) || (num_msgs = atoi(str_num_msgs)) == 0){
 			strcpy(ans, PARSING_ERROR);
 			return ans;
@@ -258,8 +299,18 @@ char* parse_exec(user* u, char* msg_ptr){
 		free(ans);
 		return chat_msgs;
 	}
-    return 0;
+    strcpy(ans, PARSING_ERROR);
+    return ans;
 }
+
+
+/**********************************************************************************************************************/
+
+        /* These functions are used by parse_exec() to parse and execute the commands from the client / 
+
+
+/**********************************************************************************************************************/
+
 
 int is_valid_username(char* username){
 	int length = 0; 
@@ -325,7 +376,6 @@ int correct_credentials(char* username, char* password) {
 		char* ptr = strtok(line, "\n");
 		char* user = strtok(ptr, " ");
 		char* pass = strtok(NULL, " ");
-		fprintf(stdout, "%s vs %s / %s vs %s.\n", username, user, password, pass);
 		if ( strcmp(user, username) == 0 ) {
 			fclose(f);
 			pthread_mutex_unlock(&credentials_lock);
@@ -385,6 +435,8 @@ int is_guest(char* name){
     return (strncmp(name, "guest_", 6) == 0);
 }
 
+// The caller must hold the lock of 
+// filepath before calling del_user
 int del_user(char* username, char* filepath){
     FILE* f = fopen(filepath, "r");
     if (f == NULL) return -1;
@@ -615,3 +667,27 @@ char* read_chat(char* chat_name, int max_msgs){
 	return ans;
 }
 
+
+char* chats_of(char* username){
+    DIR *d;
+	struct dirent *dir;
+	d = opendir(CHAT_DIR);
+	if ( d == NULL ) return 0;
+    char* ans = calloc(5, 32);
+	while ((dir = readdir(d)) != NULL) {
+        char dir_name[64];
+        strcpy(dir_name, dir->d_name);
+        char* dir_type = strtok(dir_name, "_");
+		if (dir_type == NULL) continue;
+		if ( strcmp(dir_type, "membership") == 0 ){
+            dir_type = strtok(NULL, ".");
+            if (dir_type == NULL) continue;
+            if (is_chat_member(dir_type, username) == 0){
+                strcat(ans, dir_type);
+                strcat(ans, "\n");
+            }
+        }
+    }
+    closedir(d);
+    return ans;
+}

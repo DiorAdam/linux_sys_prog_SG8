@@ -13,38 +13,33 @@
 #include "server_utils.c"
 
 
-/* This function communicates with the client by: 
-        - listening to the client's messages
+/* 
+This function communicates with the client by: 
+        - receiving the client's messages
         - parsing them and checking if the command is recognized
+		- executing the necessary procedures
         - and then answering to the client 
- The client exits the process by using the command <exit> */
+It runs in its own thread and handles one and only one client.
+*/
 
 
 void* communication_loop(void* connfdaddr){
 	int connfd = *((int*) connfdaddr);
     char buff[MAX_MESSAGE_LENGTH];
 	user u;
+	u.username[0] = '\0';
 	for (;;) {
 		bzero(buff, MAX_MESSAGE_LENGTH);
 		
 		read(connfd, buff, sizeof(buff));
 		
         char* response = parse_exec(&u, buff);
-
-        if (!response){
-            response = "An error occured while executing this command\n";
-			write(connfd, response, strlen(response));
-        }
-        else {
-            if (strcmp(response, "EXIT\n") == 0){
-                printf("Client handled by server_thread_%u disconnected\n", (unsigned) pthread_self());
-                break;
-            }
-			write(connfd, response, strlen(response));
-			free(response);
-        }
-		
-		
+		if (strcmp(response, "EXIT\n") == 0){
+			printf("Client handled by server_thread_%u disconnected\n", (unsigned) pthread_self());
+			break;
+		}
+		write(connfd, response, strlen(response));
+		free(response);
     }
 	close(connfd);
 }
@@ -106,6 +101,11 @@ void handle_conn(int sockfd){
 	}
 }
 
+/* 
+This function initializes the server. It calls:
+	- clear_guests() to clear the file GUESTS_FILE (Guests cannot outlive a server shutdown)
+	- and function's to set up the server's TCP connection and listen for clients 
+*/
 void init_server(){
 	if (clear_guests() < 0) printf("An Error occurred while clearing guest list");
 	int sockfd = make_sock();

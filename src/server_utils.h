@@ -15,6 +15,7 @@
 #define USER_DOESNT_EXIST "Username doesn't exist\n"
 #define LOGOUT_SUCCESS "Succesfully logged out\n"
 #define LOGIN_REQUIRED "Login required for this action\n"
+#define LOGOUT_REQUIRED "Must logout first\n"
 #define CHAT_CREATION_ERROR "An error occurred while creating this chat\n"
 #define CHAT_CREATION_SUCCESS "Chat succesfully created\n"
 #define CHAT_EXISTS "Chat already exists\n"
@@ -28,6 +29,7 @@
 #define TOO_LONG "Cannot read over 5 messages\n"
 #define LOGIN_GUEST_ERROR "An error occurred while signing you in as a guest\n"
 #define LOGOUT_ERROR "An error occurred while signing you out\n"
+#define CHATS_ERROR "An error occurred while determining your chat memberships\n"
 
 typedef struct {
     char username[32];
@@ -69,4 +71,6 @@ int del_user(char* username, char* filepath);
 int del_guest(char* guest_name);
 
 int clear_guests();
+
+char* chats_of(char* username);
 
