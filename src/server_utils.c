@@ -20,7 +20,7 @@ pthread_mutex_t guests_lock;
 
 /* 
 This function 
-    - parses the commands from the client
+    - parses the command from the client
     - exexcutes the command
     - and finally returns a string containing the output
 */
@@ -199,7 +199,6 @@ char* parse_exec(user* u, char* msg_ptr){
 			strcpy(ans, LOGIN_REQUIRED);
 			return ans;
 		}
-
         char* my_chats = chats_of(u->username);
         if (my_chats == 0){
             strcpy(ans, CHATS_ERROR);
@@ -306,12 +305,16 @@ char* parse_exec(user* u, char* msg_ptr){
 
 /**********************************************************************************************************************/
 
-        /* These functions are used by parse_exec() to parse and execute the commands from the client / 
+        /* These functions are used by parse_exec() to execute the commands from the client / 
 
 
 /**********************************************************************************************************************/
 
-
+/*
+this takes a char* username as an input and returns
+- 0 if the username is not valid
+- 1 if it is valid
+*/
 int is_valid_username(char* username){
 	int length = 0; 
 	char c;
@@ -337,7 +340,12 @@ int is_valid_password(char* password) {
 	return 1;
 }
 
-
+/*
+this function takes a char* username as an input and returns :
+	- 0 if the user exists
+	- -1 if encountered a system error
+	- -2 if the user doesn't exist
+*/
 int user_exists(char* username) {
     if (is_guest(username)) return 0;
 
@@ -360,9 +368,19 @@ int user_exists(char* username) {
 	
 	fclose(f);
 	pthread_mutex_unlock(&credentials_lock);
-	return 1;
+	return -2;
 }
 
+
+/*
+This function reads the file credentials.txt and looks for 
+a matching couple (username, password)
+It returns 
+- 0 if it found a matching couple
+- -1 in case of a system error 
+- -2 if the password is wrong
+- -3 if the user doesn't exist
+*/
 int correct_credentials(char* username, char* password) {
 	pthread_mutex_lock(&credentials_lock);
 	FILE* f = fopen(CREDENTIALS_FILE, "r");
@@ -391,10 +409,19 @@ int correct_credentials(char* username, char* password) {
 	return -3; //user doesn't exist
 }
 
+/*
+This function adds a user in the file credentials.txt
+it returns 
+- 0 in case of success
+- -1 in case of system error
+- -2 if the password is not valid
+- -3 if the username is not valid
+- -4 if the user already exists
+*/
 int add_user(char* username, char* password) {
 	if ( !is_valid_password(password) ) return -2;
 	if (!is_valid_username(username)) return -3;
-	if ( user_exists(username) != 1 ) return -4;
+	if ( user_exists(username) == 0 ) return -4;
 	pthread_mutex_lock(&credentials_lock);
 	FILE* f = fopen(CREDENTIALS_FILE, "a");
 	if ( f == NULL ){
@@ -406,7 +433,11 @@ int add_user(char* username, char* password) {
 	pthread_mutex_unlock(&credentials_lock);
 	return 0;
 }
- 
+
+/*
+this function generates a random guest username 
+for the user given in argument
+*/
 void generate_guest_username(user* u) {
     strcpy(u->username, "guest_");
 	const char charset[] = "abcdefghijklmnopqrstuvwxyz";
@@ -418,6 +449,10 @@ void generate_guest_username(user* u) {
     u->username[6+10] = '\0';
 }
 
+
+/*
+This function logs in a guest by adding them in the guest file
+*/
 int login_guest(char* guest_name){
     pthread_mutex_lock(&guests_lock);
     FILE* f = fopen(GUESTS_FILE, "a");
@@ -431,12 +466,25 @@ int login_guest(char* guest_name){
     return 0;
 }
 
+/*
+This function determines if a user is a guest
+it returns 
+- 1 if it is
+- 0 if it isn't
+*/
 int is_guest(char* name){
     return (strncmp(name, "guest_", 6) == 0);
 }
 
-// The caller must hold the lock of 
-// filepath before calling del_user
+/* The caller must hold the lock of 
+   filepath before calling del_user */
+
+/*
+This function deletes a user from the file at filepath
+it returns 
+- 0 in case of success (or if the user doesn't exist)
+- -1 in case of error
+*/
 int del_user(char* username, char* filepath){
     FILE* f = fopen(filepath, "r");
     if (f == NULL) return -1;
@@ -455,6 +503,14 @@ int del_user(char* username, char* filepath){
     return 0;
 }
 
+/*
+This function deletes a guest from the guest file 
+and his membership from all group_chats he was a member of
+It is called everytime a guest logs out since guests don't have an account
+It returns
+- 0 in case of success
+- -1 otherwise
+*/
 int del_guest(char* guest_name){
     pthread_mutex_lock(&guests_lock);
     if (del_user(guest_name, GUESTS_FILE)<0){
@@ -491,14 +547,34 @@ int del_guest(char* guest_name){
     return 0;
 }
 
+
+/*
+This function clears the file guests.txt
+It is called everytime the server restarts because
+we don't want guests who didn't log out to outlive 
+a server shutdown
+it returns 
+- 0 in case of success
+- -1 otherwise
+*/
 int clear_guests(){
     pthread_mutex_lock(&guests_lock);
     FILE* f = fopen(GUESTS_FILE, "w");
     if (f == NULL) return -1;
     fclose(f);
     pthread_mutex_unlock(&guests_lock);
+	return 0;
 }
 
+/*
+This function checks if a given chat exists
+by iterating through the directory data/groupchats 
+to find a file named .*_<chat_name>...
+it returns 
+	- 0 if it found the chat
+	- -1 in case of system error
+	- -2 if the chat doesn't exist
+*/
 int chat_exists(char* chat_name) {
 	DIR *d;
 	struct dirent *dir;
@@ -516,6 +592,13 @@ int chat_exists(char* chat_name) {
 	return -2;
 }
 
+/*
+This function creates a chat <chat_name>
+and sets its founder to be user <u>
+it returns 
+	- 0 in case of success
+	- -1 otherwise
+*/
 int create_chat(char* chat_name, user* u){
 	if ( chat_exists(chat_name) == 0 ) return -2;
 	char members_path[128]; 
@@ -551,6 +634,15 @@ int create_chat(char* chat_name, user* u){
 	return 0;
 }
 
+
+/*
+This function sends a message <msg> from user <u>
+in chat <chat_name>. It must be called after 
+verifying the permissions of the user <u>
+it returns
+	- 0 in case of success
+	- -1 otherwise
+*/
 int send_chat_msg(char* chat_name, char* msg, user* u){
 	if (is_chat_member(chat_name, u->username) != 0) return -2;
 	char path[128]; 
@@ -567,6 +659,16 @@ int send_chat_msg(char* chat_name, char* msg, user* u){
 	return 0;
 }
 
+
+/*
+This function determines if a user is
+a member of a chat group
+it returns 
+	- 0 if he is
+	- -1 in case of system error
+	- -2 if he isn't
+
+*/
 int is_chat_member(char* chat_name, char* member_name){
 	char members_path[128]; 
 	strcpy(members_path, CHAT_DIR);
@@ -590,7 +692,7 @@ int is_chat_member(char* chat_name, char* member_name){
 	}
 	fclose(f);
 	pthread_mutex_unlock(&memberships_lock);
-	return -1;
+	return -2;
 }
 
 int add_chat_member(char* chat_name, char* new_member, user* u){
@@ -673,7 +775,9 @@ char* chats_of(char* username){
 	struct dirent *dir;
 	d = opendir(CHAT_DIR);
 	if ( d == NULL ) return 0;
-    char* ans = calloc(5, 32);
+    char* ans = (char*) calloc(5, 32);
+	ans[0] = '\n';
+	ans[1] = '\0';
 	while ((dir = readdir(d)) != NULL) {
         char dir_name[64];
         strcpy(dir_name, dir->d_name);
