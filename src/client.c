@@ -9,7 +9,8 @@
 #include "server.h"
 
 void comm_loop_client(int sockfd){
-	char buff[5 * MAX_MESSAGE_LENGTH];
+	char buff_out[MAX_MESSAGE_LENGTH];
+	char buff_in[5*MAX_MESSAGE_LENGTH];
 	int pos;
 	char help[400] = ""; 
 	strcat(help, "supported commands are the following:\n");
@@ -25,21 +26,21 @@ void comm_loop_client(int sockfd){
 	strcat(help,"\t- EXIT\n");            
 	printf("%s\n",help);
 	for (;;) {
-		bzero(buff, sizeof(buff));
-		
+		bzero(buff_in, sizeof(buff_in));
+		bzero(buff_out, sizeof(buff_out));
 		printf(" >>> ");
 		pos = 0;
-		while ((buff[pos] = getchar()) != '\n') pos++;
+		while ((buff_out[pos] = getchar()) != '\n') pos++;
 
-		write(sockfd, buff, strlen(buff));
-		if ((strcmp(buff, "EXIT\n")) == 0) {
+		write(sockfd, buff_out, strlen(buff_out));
+		if ((strcmp(buff_out, "EXIT\n")) == 0) {
 			printf("Disconnecting\n");
 			break;
 		}
 
-		bzero(buff, sizeof(buff));
-		read(sockfd, buff, sizeof(buff));
-		printf("%s", buff);
+		
+		read(sockfd, buff_in, sizeof(buff_in));
+		printf("%s", buff_in);
 		
 	}
 }

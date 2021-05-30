@@ -12,9 +12,16 @@
 #include "server_utils.h"
 #include "server.h"
 
+// mutex for credentials.txt
 pthread_mutex_t credentials_lock;
+
+// mutex for all chats_XXX.txt files
 pthread_mutex_t chats_lock;
+
+// mutex for all memberships_XXX.txt files
 pthread_mutex_t memberships_lock;
+
+// mutex for guests.txt 
 pthread_mutex_t guests_lock;
 
 
@@ -695,6 +702,17 @@ int is_chat_member(char* chat_name, char* member_name){
 	return -2;
 }
 
+/*
+This function adds user <new_member> in chat <chat_name>
+user <u> is the user typing the command, and a verification 
+is made to check if he's the owner of the chat
+it returns
+	- 0 if success
+	- -1 in case of system error
+	- -2 if the chat doesn't exist
+	- -3 if the user <new_member> doesn't exist
+	- -4 if user <u> is not the owner of this chat
+*/
 int add_chat_member(char* chat_name, char* new_member, user* u){
 	if (chat_exists(chat_name) != 0) return -2;
 	if (is_chat_member(chat_name, new_member) == 0) return 0;
@@ -737,6 +755,12 @@ int add_chat_member(char* chat_name, char* new_member, user* u){
 	return 0;
 }
 
+/*
+This function returns a string containing the
+<max_msgs> last lessages in chat <chat_name>
+it returns 0 if an error is encountered.
+*/
+
 char* read_chat(char* chat_name, int max_msgs){
 	char chat_path[128];
 	strcpy(chat_path, CHAT_DIR);
@@ -769,7 +793,11 @@ char* read_chat(char* chat_name, int max_msgs){
 	return ans;
 }
 
-
+/*
+this function returns a string containing 
+chats that user <username> belong in.
+it returns 0 in case of error
+*/
 char* chats_of(char* username){
     DIR *d;
 	struct dirent *dir;

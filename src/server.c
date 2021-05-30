@@ -27,12 +27,12 @@ void* communication_loop(void* connfdaddr){
 	int connfd = *((int*) connfdaddr);
     char buff[MAX_MESSAGE_LENGTH];
 	user u;
-	u.username[0] = '\0';
+	bzero(u.username, 32);
 	for (;;) {
 		bzero(buff, MAX_MESSAGE_LENGTH);
-		
 		read(connfd, buff, sizeof(buff));
-		
+		if (strlen(buff) == 0) break;
+
         char* response = parse_exec(&u, buff);
 		if (strcmp(response, "EXIT\n") == 0){
 			printf("Client handled by server_thread_%u disconnected\n", (unsigned) pthread_self());
@@ -82,6 +82,12 @@ void listen_sock(int sockfd){
 		printf("server listening..\n");
 }
 
+/*
+This function runs in the main thread
+and listens for new clients.
+whenever it accepts a new client, it creates a new
+communication_loop() thread that will handle that client
+*/
 void handle_conn(int sockfd){
 	for(;;){
 		struct sockaddr_in new_cl_sock;
