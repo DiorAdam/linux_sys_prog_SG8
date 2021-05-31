@@ -1,8 +1,8 @@
 
 
-#define CREDENTIALS_FILE "../data/credentials.txt"
-#define CHAT_DIR "../data/groupchats"
-#define GUESTS_FILE "../data/guests.txt"
+#define CREDENTIALS_FILE "data/credentials.txt"
+#define CHAT_DIR "data/groupchats"
+#define GUESTS_FILE "data/guests.txt"
 
 #define PARSING_ERROR "Parsing Error : command is not valid\n"
 #define INVALID_USERNAME "Username is not valid\n"

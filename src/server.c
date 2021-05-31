@@ -113,7 +113,7 @@ This function initializes the server. It calls:
 	- and function's to set up the server's TCP connection and listen for clients 
 */
 void init_server(){
-	if (clear_guests() < 0) printf("An Error occurred while clearing guest list");
+	if (clear_guests() < 0) printf("An Error occurred while clearing guest list\n");
 	int sockfd = make_sock();
 	listen_sock(sockfd);
 	handle_conn(sockfd);
