@@ -1,9 +1,12 @@
-### Compilation:
-	$ make
+A small discord app using a client/server architecture, multithreading and synchronization methods of the linux API.
 
-### Lancement Serveur:
-	$ ./dist/server
-	Le serveur doit être lancée de cette manière sinon on aura des problèmes avec les chemins relatifs.
+## Run:
+To run the app: 
 
-### Lancement Client:
-	$ ./dist/client
+- compile the source code: $ make
+
+- run the server: $ ./dist/server
+
+- run clients in different terminals: $ ./dist/client
+
+
