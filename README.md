@@ -1,4 +1,4 @@
-A small discord app using a client/server architecture, multithreading and synchronization methods of the linux API.
+A small messaging app using a client/server architecture, multithreading and synchronization methods of the linux API.
 
 ## Run:
 To run the app execute the following commands in the root folder: 
